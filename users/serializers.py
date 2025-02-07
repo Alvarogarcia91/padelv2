@@ -8,7 +8,14 @@ class RegisterSerializer(serializers.ModelSerializer):
         model = User
         fields = ['username', 'email', 'password']
 
+    def validate_email(self, value):
+        """Verifica que el email no esté registrado"""
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("A user with this email already exists.")
+        return value
+
     def create(self, validated_data):
+        """Crea un nuevo usuario con los datos validados"""
         user = User.objects.create_user(
             username=validated_data['username'],
             email=validated_data['email'],
