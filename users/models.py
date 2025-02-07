@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils.timezone import now
+from datetime import timedelta
 
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
@@ -19,3 +21,17 @@ class Profile(models.Model):
 
     def __str__(self):
         return self.user.username
+
+
+class PasswordResetToken(models.Model):
+    """Modelo para almacenar tokens de recuperación de contraseña con expiración"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="password_resets")
+    token = models.CharField(max_length=64, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def is_expired(self):
+        """Revisar si el token ha expirado (ejemplo: 1 hora de validez)"""
+        return self.created_at < now() - timedelta(hours=1)
+
+    def __str__(self):
+        return f"Reset Token for {self.user.username}"

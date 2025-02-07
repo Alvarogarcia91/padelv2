@@ -9,11 +9,11 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import RegisterSerializer
+from .models import PasswordResetToken
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 import uuid
 
-password_reset_tokens = {}  # Diccionario temporal para almacenar tokens de restablecimiento
 
 @swagger_auto_schema(
     method="post",
@@ -97,6 +97,34 @@ def activate_user(request, token):
     }, status=status.HTTP_200_OK)
 
 
+@swagger_auto_schema(
+    method="post",
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        required=["email"],
+        properties={
+            "email": openapi.Schema(type=openapi.TYPE_STRING, format="email"),
+        },
+    ),
+    responses={
+        200: openapi.Response(
+            description="Si el email existe, se envía un enlace de recuperación.",
+            examples={
+                "application/json": {
+                    "message": "If the email exists, a reset link has been sent."
+                }
+            },
+        ),
+        400: openapi.Response(
+            description="Error en la solicitud",
+            examples={
+                "application/json": {
+                    "error": "Email is required"
+                }
+            },
+        ),
+    },
+)
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def request_password_reset(request):
@@ -109,9 +137,9 @@ def request_password_reset(request):
     if not user:
         return Response({"message": "If the email exists, a reset link has been sent."}, status=status.HTTP_200_OK)
 
-    # Generar un token único
-    reset_token = get_random_string(length=32)
-    password_reset_tokens[reset_token] = user.id
+    # Generar un token único y guardarlo en la base de datos
+    reset_token = get_random_string(length=64)
+    PasswordResetToken.objects.create(user=user, token=reset_token)
 
     # Enviar email con el enlace de restablecimiento
     reset_link = f"http://127.0.0.1:8000/api/users/password-reset/{reset_token}/"
@@ -126,6 +154,34 @@ def request_password_reset(request):
     return Response({"message": "If the email exists, a reset link has been sent."}, status=status.HTTP_200_OK)
 
 
+@swagger_auto_schema(
+    method="post",
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        required=["password"],
+        properties={
+            "password": openapi.Schema(type=openapi.TYPE_STRING, format="password"),
+        },
+    ),
+    responses={
+        200: openapi.Response(
+            description="Contraseña restablecida correctamente.",
+            examples={
+                "application/json": {
+                    "message": "Password reset successfully"
+                }
+            },
+        ),
+        400: openapi.Response(
+            description="Error en la solicitud",
+            examples={
+                "application/json": {
+                    "error": "Invalid or expired token"
+                }
+            },
+        ),
+    },
+)
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def reset_password(request, token):
@@ -134,15 +190,15 @@ def reset_password(request, token):
     if not new_password:
         return Response({"error": "Password is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-    user_id = password_reset_tokens.get(token)
-    if not user_id:
+    reset_token = PasswordResetToken.objects.filter(token=token).first()
+    if not reset_token or reset_token.is_expired():
         return Response({"error": "Invalid or expired token"}, status=status.HTTP_400_BAD_REQUEST)
 
-    user = get_object_or_404(User, id=user_id)
+    user = reset_token.user
     user.set_password(new_password)
     user.save()
 
     # Eliminar el token después de su uso
-    del password_reset_tokens[token]
+    reset_token.delete()
 
     return Response({"message": "Password reset successfully"}, status=status.HTTP_200_OK)
