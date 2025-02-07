@@ -16,12 +16,11 @@ schema_view = get_schema_view(
     ),
     public=True,
     permission_classes=(permissions.AllowAny,),
-    authentication_classes=[],  # Evita que Swagger use Basic Auth por defecto
 )
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path("api/users/", include("users.urls")),  # Rutas de autenticación y usuarios
+    path("api/users/", include("users.urls")),  # Importar correctamente users.urls
     path("api-auth/", include("rest_framework.urls")),  # Habilitar autenticación de DRF
 
     # Documentación de Swagger con soporte para JWT
